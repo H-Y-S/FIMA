@@ -1,0 +1,13 @@
+import pygtk
+pygtk.require('2.0')
+import gtk
+import gobject
+
+
+
+
+class MPLTest:
+    self.builder = gtk.Builder()
+    self.builder.add_from_file("mpltest.glade")
+    self.init_values() # init values before connecting the fields
+                            
