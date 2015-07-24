@@ -2,10 +2,21 @@ import os
 import re
 import glob
 from contextlib import contextmanager
+import numpy as np
 
 from EDFIO import edfio
 
 
+@contextmanager
+def working_directory(path):
+    current_dir = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(current_dir)
+
+        
 # Fluorescence imaging dataset
 # The data is stored in numpy ndarray (3-dimensional)
 # each detector, projection angle, and timestep is stored
@@ -13,18 +24,18 @@ from EDFIO import edfio
 # [det #, proj #, timestep #]
 class FluoDataset:
     def __init__(self):
-        mDataDictionary = {}
+        self.mDataDictionary = {}
         pass
 
     # reads all files corresponding to the given
     # filename (all xia## files, all lines, all projections)
-    def populate_dataset(filename):        
+    def populate_dataset(self,filename):        
         p,filename = os.path.split(filename)
         basename,ext = os.path.splitext(filename)
 
         # test which xia## files exist
         xiapattern = re.sub(r'(xia.._)',r'xia??_',filename)
-        with working_diretory(p):
+        with working_directory(p):
             tmp = glob.glob(xiapattern)
 
         xialist = []
@@ -34,7 +45,7 @@ class FluoDataset:
             
         # test which scan lines exist
         linepattern = basename[0:-4] + "????" + ext
-        with working_diretory(p):
+        with working_directory(p):
             tmp = glob.glob(linepattern)
 
         linelist = []
@@ -50,7 +61,7 @@ class FluoDataset:
         # Then load the files
         with working_directory(p):
             for x in xialist:
-                files = glob.glob('*'_+x+"_*_????"+ext)
+                files = glob.glob('*_'+x+"_*_????"+ext)
 
                 data_list = []
                 for f in files:
@@ -58,16 +69,22 @@ class FluoDataset:
                     a = edfio.read_edf_file(f)
                     data_list.append(a)
 
-                data_tuple = tuple(a)
+                data_tuple = tuple(data_list)
                 data_array = np.dstack(data_tuple)
 
-
-                mDataDictionary[(x,0,0)] = data_array
+                key = (x,0,0)
+                print "Using key "
+                print key
+                self.mDataDictionary[key] = data_array
                                                     
 
-    def get_fluo_data(self,detno,projno,timestepno):
-        pass
-
+    def get_fluo_data(self,detkey,projno,timestepno):
+        try:
+            data_array = self.mDataDictionary[(detkey,projno,timestepno)]
+            return data_array
+        except:
+            return None
+        
     def get_det_count(self):
         pass
 
@@ -81,11 +98,3 @@ class FluoDataset:
 
 
         
-@contextmanager
-def working_directory(path):
-    current_dir = os.getcwd()
-    os.chdir(path)
-    try:
-        yield
-    finally:
-        os.chdir(current_dir)

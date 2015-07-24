@@ -5,6 +5,7 @@ import gobject
 import os.path
 import re
 import glob
+import numpy as np
 
 #from numpy import arange, sin, pi
 
@@ -13,6 +14,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvas
 
 
+from fluo_dataset import FluoDataset
 
 class ROIImage:
     def __init__(self):
@@ -23,7 +25,7 @@ class ROIImage:
 
         # Create a matplotlib figure for the image        
         self.imageFigure = Figure(figsize=(5,4), dpi=100)
-        self.a = self.imageFigure.add_subplot(111)
+        self.imagePlot = self.imageFigure.add_subplot(111)
 
         # Place the matplotlib figures into a container
         self.imageCanvas = FigureCanvas(self.imageFigure)  # a gtk.DrawingArea
@@ -31,13 +33,22 @@ class ROIImage:
 
         # Create a matplotlib figure for the plot       
         self.plotFigure = Figure(figsize=(5,4), dpi=100)
-        self.a = self.plotFigure.add_subplot(111)
+        self.plotPlot = self.plotFigure.add_subplot(111)
 
         # Place the matplotlib figures into a container
         self.plotCanvas = FigureCanvas(self.plotFigure)  # a gtk.DrawingArea
         self.builder.get_object('plotViewPort').add(self.plotCanvas)
 
-                
+        self.builder.get_object('lowIndexSlider').set_range(0,2047)
+        self.builder.get_object('lowIndexSlider').set_value(0)
+        
+        self.builder.get_object('highIndexSlider').set_range(0,2047)
+        self.builder.get_object('highIndexSlider').set_value(2047)
+
+        self.mCurrentLowLimit = 0
+        self.mCurrentHighLimit = 2047
+        
+                        
     # This one is called when the main window is destroyed (i.e. when  
     # delete_event returns null)
     def on_main_window_destroy(self, widget, data=None):
@@ -61,7 +72,6 @@ class ROIImage:
 
     def openDataButtonClicked(self,widget,data = None):
         # Open file chooser to choose a single file
-        1
         chooser = gtk.FileChooserDialog(title=None,action=gtk.FILE_CHOOSER_ACTION_OPEN,
             buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK)) 
         resp = chooser.run()
@@ -69,35 +79,57 @@ class ROIImage:
             filename = chooser.get_filename()
             print "selected file: " + filename
 
-            # parse the filename
-            self.list_matching_files(filename)
-            # read all the files (including xiast files)
-                                    
-            # display the new data
+            
+            self.mDataSet = FluoDataset()
+            self.mDataSet.populate_dataset(filename)
+
+            print "Dataset populated"
+
+            # Test display
+            self.showImage()
+            self.showPlot()
+
+                        
         elif resp == gtk.RESPONSE_CANCEL:
             print 'Closed, no files selected'
 			
         chooser.destroy()
 
-                
 
-    # This lists matching xia-files from ID22NI style data layout.
-    # there can be xia## for different detectors and xiast for stats
-    def list_matching_files(self,filename):
-        p,filename = os.path.split(filename)
-        basename,ext = os.path.splitext(filename)
+    def showImage(self):
+        data_set = self.mDataSet.get_fluo_data('xia00',0,0)
 
-        # test which xia## files exist
-        xiapattern = re.sub(r'(xia.._)',r'xia??_',filename)
-        xialist = glob.glob(xiapattern)
-
-        
-        # Then load the files
+        if not data_set == None:
+            self.imagePlot.clear()
+            self.imagePlot.imshow(data_set[:,self.mCurrentLowLimit:self.mCurrentHighLimit,:].sum(1))
+            self.imageCanvas.draw()
         
 
+    def showPlot(self):
+        data_set = self.mDataSet.get_fluo_data('xia00',0,0)
+
+        if not data_set == None:
+            self.plotPlot.clear()
+            self.plotPlot.plot(data_set.sum((0,2)))
+            self.plotPlot.axvline(self.mCurrentLowLimit)
+            self.plotPlot.axvline(self.mCurrentHighLimit)
+            self.plotCanvas.draw()
 
         
-    
+    def lowerLimitChanged(self,widget,data = None):
+        self.mCurrentLowLimit = widget.get_value()
+        self.mCurrentHighLimit = max(self.mCurrentHighLimit,self.mCurrentLowLimit)
+        self.showImage()
+        self.showPlot()
+        
+    def upperLimitChanged(self,widget,data = None):
+        self.mCurrentHighLimit = widget.get_value()
+        self.mCurrentLowLimit = min(self.mCurrentHighLimit,self.mCurrentLowLimit)
+        self.showImage()
+        self.showPlot()
+
+        
+
 #    def singleDistanceClicked(self, widget, data = None):
 #        print 'single distance clicked'
 #        f,y = self.gen_1dist()
